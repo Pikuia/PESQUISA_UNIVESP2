@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
 import os
-import sqlite3
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import PCA
+from streamlit_option_menu import option_menu
 
 # Configuração da página
 st.set_page_config(
@@ -88,115 +88,61 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Inicialização de banco de dados
-def init_db():
-    conn = sqlite3.connect('prep_research.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS respostas
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  timestamp TEXT,
-                  Conhecimento_PrEP TEXT,
-                  Conhecimento_PEP TEXT,
-                  Acesso_servicos TEXT,
-                  Fonte_informacao TEXT,
-                  Uso_PrepPEP TEXT,
-                  Conhece_usuarios TEXT,
-                  Teste_HIV_frequencia TEXT,
-                  Metodos_prevencao TEXT,
-                  Genero TEXT,
-                  Orientacao_sexual TEXT,
-                  Raca TEXT,
-                  Faixa_etaria TEXT,
-                  Renda TEXT,
-                  Regiao TEXT)''')
-    conn.commit()
-    conn.close()
+# Inicialização de dados
+if 'dados' not in st.session_state:
+    if os.path.exists("respostas_prep.csv"):
+        st.session_state.dados = pd.read_csv("respostas_prep.csv")
+    else:
+        st.session_state.dados = pd.DataFrame()
 
-# Função para salvar dados no SQLite
+# Função para salvar dados
 def salvar_dados(resposta):
-    # Inicializar banco de dados
-    init_db()
+    arquivo_csv = "respostas_prep.csv"
     
     # Adicionar timestamp
     resposta['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # Conectar ao banco de dados
-    conn = sqlite3.connect('prep_research.db')
-    c = conn.cursor()
+    if os.path.exists(arquivo_csv):
+        df_existente = pd.read_csv(arquivo_csv)
+        df_novo = pd.DataFrame([resposta])
+        df_final = pd.concat([df_existente, df_novo], ignore_index=True)
+    else:
+        df_final = pd.DataFrame([resposta])
     
-    # Inserir dados
-    c.execute('''INSERT INTO respostas 
-                 (timestamp, Conhecimento_PrEP, Conhecimento_PEP, Acesso_servicos, 
-                  Fonte_informacao, Uso_PrepPEP, Conhece_usuarios, Teste_HIV_frequencia,
-                  Metodos_prevencao, Genero, Orientacao_sexual, Raca, Faixa_etaria, 
-                  Renda, Regiao)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-              (resposta['timestamp'], resposta['Conhecimento_PrEP'], resposta['Conhecimento_PEP'],
-               resposta['Acesso_servicos'], resposta['Fonte_informacao'], resposta['Uso_PrepPEP'],
-               resposta['Conhece_usuarios'], resposta['Teste_HIV_frequencia'], resposta['Metodos_prevencao'],
-               resposta['Genero'], resposta['Orientacao_sexual'], resposta['Raca'],
-               resposta['Faixa_etaria'], resposta['Renda'], resposta['Regiao']))
-    
-    conn.commit()
-    conn.close()
-    
-    # Atualizar dados na sessão
-    if 'dados' not in st.session_state:
-        st.session_state.dados = pd.DataFrame()
-    
-    novo_df = pd.DataFrame([resposta])
-    st.session_state.dados = pd.concat([st.session_state.dados, novo_df], ignore_index=True)
-    
+    df_final.to_csv(arquivo_csv, index=False)
+    st.session_state.dados = df_final
     return True
 
-# Carregar dados do banco
-def carregar_dados():
-    init_db()
-    conn = sqlite3.connect('prep_research.db')
-    df = pd.read_sql_query("SELECT * FROM respostas", conn)
-    conn.close()
-    
-    # Remover coluna de ID se existir
-    if 'id' in df.columns:
-        df = df.drop('id', axis=1)
-    
-    return df
-
-# Inicialização de dados
-if 'dados' not in st.session_state:
-    st.session_state.dados = carregar_dados()
-
 # Barra lateral com menu de navegação
-st.sidebar.image("https://img.icons8.com/color/96/000000/data-configuration.png", width=80)
+with st.sidebar:
+    st.title("Sobre o Projeto")
     
-# Menu de navegação usando componentes nativos do Streamlit
-pagina = st.sidebar.radio(
-    "Menu Principal",
-    ["Questionário", "Visualizações", "Análises", "Sobre"]
-)
-
-# Informações sobre o projeto
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
-<div class="info-box">
-    <h4 style="color: #000000;">Pesquisa sobre Conhecimento de PrEP/PEP</h4>
-    <p style="color: #000000;">Este projeto visa mapear o conhecimento sobre métodos de prevenção ao HIV na população de São Paulo.</p>
-</div>
-""", unsafe_allow_html=True)
+    # Menu de navegação usando streamlit_option_menu
+    selected = option_menu(
+        menu_title="Menu Principal",
+        options=["Questionário", "Visualizações", "Análises", "Sobre"],
+        icons=["clipboard", "bar-chart", "cpu", "info-circle"],
+        default_index=0,
+    )
+    
+    # Informações sobre o projeto
+    st.markdown("---")
+    st.markdown("""
+    <div class="info-box">
+        <h4 style="color: #000000;">Pesquisa sobre Conhecimento de PrEP/PEP</h4>
+        <p style="color: #000000;">Este projeto visa mapear o conhecimento sobre métodos de prevenção ao HIV na população de São Paulo.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Página do Questionário
-if pagina == "Questionário":
+if selected == "Questionário":
     # Cabeçalho
     st.markdown('<h1 class="main-header">Pesquisa sobre PrEP e Prevenção ao HIV em São Paulo</h1>', unsafe_allow_html=True)
-    
-    # Barra de progresso
-    progresso = st.progress(0)
-    st.markdown("**Progresso: 0% completado**")
     
     # Formulário de pesquisa
     with st.form("pesquisa_form"):
         # Parte 1: Conhecimento
-        st.markdown('<h2 class="section-header">Parte 1/3: Conhecimento sobre PrEP/PEP</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">Parte 1: Conhecimento sobre PrEP/PEP</h2>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -208,15 +154,6 @@ if pagina == "Questionário":
                 "Não conheço"
             ])
             
-            # Pergunta de conhecimento sobre PrEP
-            if q1 in ["Sim, conheço bem", "Conheço parcialmente"]:
-                q1a = st.radio("**A PrEP é eficaz para prevenir qual destas ISTs?**", [
-                    "Apenas HIV",
-                    "HIV e sífilis",
-                    "HIV e hepatite B",
-                    "Todas as ISTs"
-                ], help="Selecione a alternativa correta")
-        
         with col2:
             q2 = st.radio("**E a PEP (Profilaxia Pós-Exposição)?**", [
                 "Sim, conheço bem", 
@@ -224,22 +161,9 @@ if pagina == "Questionário":
                 "Já ouvi falar mas não sei detalhes", 
                 "Não conheço"
             ])
-            
-            # Pergunta de conhecimento sobre PEP
-            if q2 in ["Sim, conheço bem", "Conheço parcialmente"]:
-                q2a = st.radio("**Em quanto tempo após a exposição deve-se iniciar a PEP?**", [
-                    "Até 24 horas",
-                    "Até 72 horas",
-                    "Até 1 semana",
-                    "Não há prazo limite"
-                ], help="Selecione a alternativa correta")
-        
-        # Atualizar progresso
-        progresso.progress(33)
-        st.markdown("**Progresso: 33% completado**")
         
         # Parte 2: Experiência Pessoal
-        st.markdown('<h2 class="section-header">Parte 2/3: Experiência Pessoal</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">Parte 2: Experiência Pessoal</h2>', unsafe_allow_html=True)
         
         col3, col4 = st.columns(2)
         
@@ -263,7 +187,7 @@ if pagina == "Questionário":
         with col4:
             q5 = st.radio("**Você já usou ou usa PrEP/PEP?**", [
                 "Sim, uso atualmente",
-                "Sim, já usei no passado",
+                "Sim, já usei no pastado",
                 "Não, mas pretendo usar",
                 "Não uso e não tenho interesse",
                 "Prefiro não responder"
@@ -275,13 +199,18 @@ if pagina == "Questionário":
                 "Não conheço ninguém",
                 "Prefiro não responder"
             ])
-        
-        # Atualizar progresso
-        progresso.progress(66)
-        st.markdown("**Progresso: 66% completado**")
+            
+            q7 = st.radio("**Com que frequência você faz teste de HIV?**", [
+                "A cada 3 meses",
+                "A cada 6 meses",
+                "Uma vez por ano",
+                "Raramente faço",
+                "Nunca fiz",
+                "Prefiro não responder"
+            ])
         
         # Parte 3: Perfil Demográfico
-        st.markdown('<h2 class="section-header">Parte 3/3: Perfil Demográfico</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">Parte 3: Perfil Demográfico</h2>', unsafe_allow_html=True)
         
         col5, col6 = st.columns(2)
         
@@ -346,11 +275,16 @@ if pagina == "Questionário":
                 "Prefiro não responder"
             ])
         
-        # Questão aberta opcional
-        st.markdown("---")
-        comentarios = st.text_area("**Tem algum comentário ou sugestão sobre prevenção ao HIV?** (opcional)", 
-                                 height=100,
-                                 help="Seu comentário pode nos ajudar a melhorar os serviços de prevenção")
+        # Métodos de prevenção
+        q8 = st.multiselect("**Quais métodos de prevenção ao HIV você utiliza?**", [
+            "PrEP",
+            "PEP",
+            "Camisinha masculina",
+            "Camisinha feminina",
+            "Testagem regular",
+            "Não utilizo métodos de prevenção",
+            "Outro"
+        ])
         
         # Termos de consentimento
         st.markdown("""
@@ -384,29 +318,19 @@ if pagina == "Questionário":
                 "Regiao": regiao
             }
             
-            # Adicionar perguntas de conhecimento se respondidas
-            if 'q1a' in locals():
-                resposta["Conhecimento_PrEP_Teste"] = q1a
-            if 'q2a' in locals():
-                resposta["Conhecimento_PEP_Teste"] = q2a
-            if comentarios:
-                resposta["Comentarios"] = comentarios
-            
             if salvar_dados(resposta):
-                progresso.progress(100)
                 st.markdown("""
                 <div class="success-box">
                     <h3 style="color: #000000;">✅ Obrigado por participar da pesquisa!</h3>
                     <p style="color: #000000;">Sua contribuição é muito importante para entendermos melhor o conhecimento sobre 
                     prevenção ao HIV em nossa comunidade.</p>
-                    <p style="color: #000000;">Você pode visualizar os resultados preliminares na aba "Visualizações".</p>
                 </div>
                 """, unsafe_allow_html=True)
         elif enviado and not consentimento:
             st.error("Você precisa concordar com os termos de consentimento para enviar o formulário.")
 
 # Página de Visualizações
-elif pagina == "Visualizações":
+elif selected == "Visualizações":
     st.markdown('<h1 class="main-header">Visualizações dos Dados</h1>', unsafe_allow_html=True)
     
     if not st.session_state.dados.empty:
@@ -418,177 +342,81 @@ elif pagina == "Visualizações":
         </div>
         """, unsafe_allow_html=True)
         
-        # Filtros
-        st.sidebar.header("Filtros")
+        # Gráfico de distribuição do conhecimento
+        fig, ax = plt.subplots(1, 2, figsize=(15, 5))
         
-        # Filtro por região
-        regioes = st.sidebar.multiselect(
-            "Filtrar por região:",
-            options=st.session_state.dados['Regiao'].unique(),
-            default=st.session_state.dados['Regiao'].unique()
-        )
+        conhecimento_prep = st.session_state.dados['Conhecimento_PrEP'].value_counts()
+        ax[0].bar(conhecimento_prep.index, conhecimento_prep.values)
+        ax[0].set_title('Conhecimento sobre PrEP')
+        ax[0].tick_params(axis='x', rotation=45)
         
-        # Aplicar filtros
-        dados_filtrados = st.session_state.dados[st.session_state.dados['Regiao'].isin(regioes)]
+        conhecimento_pep = st.session_state.dados['Conhecimento_PEP'].value_counts()
+        ax[1].bar(conhecimento_pep.index, conhecimento_pep.values)
+        ax[1].set_title('Conhecimento sobre PEP')
+        ax[1].tick_params(axis='x', rotation=45)
         
-        # Visualizações
-        tab1, tab2, tab3 = st.tabs(["Distribuições", "Comparativos", "Mapas"])
-        
-        with tab1:
-            # Gráfico de distribuição do conhecimento
-            fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-            
-            conhecimento_prep = dados_filtrados['Conhecimento_PrEP'].value_counts()
-            ax[0].bar(conhecimento_prep.index, conhecimento_prep.values)
-            ax[0].set_title('Conhecimento sobre PrEP')
-            ax[0].tick_params(axis='x', rotation=45)
-            
-            conhecimento_pep = dados_filtrados['Conhecimento_PEP'].value_counts()
-            ax[1].bar(conhecimento_pep.index, conhecimento_pep.values)
-            ax[1].set_title('Conhecimento sobre PEP')
-            ax[1].tick_params(axis='x', rotation=45)
-            
-            st.pyplot(fig)
-        
-        with tab2:
-            # Comparativo por gênero
-            conhecimento_genero = pd.crosstab(
-                dados_filtrados['Genero'], 
-                dados_filtrados['Conhecimento_PrEP']
-            )
-            
-            fig, ax = plt.subplots(figsize=(12, 6))
-            conhecimento_genero.plot(kind='bar', ax=ax)
-            ax.set_title('Conhecimento de PrEP por Identidade de Gênero')
-            ax.legend(title="Conhecimento", bbox_to_anchor=(1.05, 1), loc='upper left')
-            plt.xticks(rotation=45, ha='right')
-            st.pyplot(fig)
-        
-        with tab3:
-            # Mapa de calor por região
-            st.info("Em desenvolvimento: Mapa interativo das respostas por região")
+        st.pyplot(fig)
     
     else:
         st.info("Aguardando respostas. As visualizações serão exibidas aqui quando houver dados suficientes.")
 
 # Página de Análises
-elif pagina == "Análises":
+elif selected == "Análises":
     st.markdown('<h1 class="main-header">Análises Avançadas</h1>', unsafe_allow_html=True)
     
-    if not st.session_state.dados.empty and len(st.session_state.dados) >= 10:
-        st.markdown("""
-        <div class="ml-explanation">
-            <h4 style="color: #000000;">🤖 Análise com Machine Learning</h4>
-            <p style="color: #000000;">Utilizamos algoritmos de aprendizado de máquina para identificar padrões 
-            e agrupamentos naturais nas respostas.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Análise de clusters
+    if not st.session_state.dados.empty and len(st.session_state.dados) >= 3:
         try:
+            # Preparar dados para clustering
             dados_ml = st.session_state.dados.copy()
             
             # Codificar variáveis categóricas
             le = LabelEncoder()
             for col in dados_ml.select_dtypes(include=['object']).columns:
-                if col != 'timestamp' and col != 'Metodos_prevencao' and col != 'Comentarios':
-                    dados_ml[col] = le.fit_transform(dados_ml[col].astype(str))
+                dados_ml[col] = le.fit_transform(dados_ml[col].astype(str))
             
-            # Remover colunas problemáticas
-            cols_remover = ['timestamp', 'Metodos_prevencao', 'Comentarios']
-            dados_ml = dados_ml.drop([col for col in cols_remover if col in dados_ml.columns], axis=1)
+            # Padronizar os dados
+            scaler = StandardScaler()
+            dados_scaled = scaler.fit_transform(dados_ml)
             
-            if len(dados_ml) >= 3:
-                # Padronizar os dados
-                scaler = StandardScaler()
-                dados_scaled = scaler.fit_transform(dados_ml)
-                
-                # Aplicar K-Means
-                n_clusters = min(3, len(dados_scaled) - 1)
-                kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-                clusters = kmeans.fit_predict(dados_scaled)
-                
-                # Reduzir dimensionalidade para visualização
-                pca = PCA(n_components=2)
-                componentes = pca.fit_transform(dados_scaled)
-                
-                # Visualizar clusters
-                fig, ax = plt.subplots(figsize=(10, 8))
-                scatter = ax.scatter(componentes[:, 0], componentes[:, 1], c=clusters, cmap='viridis', alpha=0.7)
-                ax.set_xlabel('Componente Principal 1')
-                ax.set_ylabel('Componente Principal 2')
-                ax.set_title('Agrupamento de Respostas (K-Means)')
-                plt.colorbar(scatter, label='Cluster')
-                st.pyplot(fig)
-                
-                # Interpretação dos clusters
-                st.info("""
-                **Interpretação dos Clusters:** 
-                - **Cluster 0**: Perfil com menor conhecimento e acesso
-                - **Cluster 1**: Perfil com conhecimento intermediário
-                - **Cluster 2**: Perfil com maior conhecimento e experiência
-                """)
-        
+            # Aplicar K-Means
+            n_clusters = min(3, len(dados_scaled))
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            clusters = kmeans.fit_predict(dados_scaled)
+            
+            # Reduzir dimensionalidade para visualização
+            pca = PCA(n_components=2)
+            componentes = pca.fit_transform(dados_scaled)
+            
+            # Visualizar clusters
+            fig, ax = plt.subplots(figsize=(10, 8))
+            scatter = ax.scatter(componentes[:, 0], componentes[:, 1], c=clusters, cmap='viridis', alpha=0.7)
+            ax.set_xlabel('Componente Principal 1')
+            ax.set_ylabel('Componente Principal 2')
+            ax.set_title('Agrupamento de Respostas (K-Means)')
+            plt.colorbar(scatter, label='Cluster')
+            st.pyplot(fig)
+            
         except Exception as e:
             st.error(f"Erro na análise: {str(e)}")
     
     else:
-        st.info("São necessárias pelo menos 10 respostas para as análises avançadas.")
+        st.info("São necessárias pelo menos 3 respostas para as análises avançadas.")
 
 # Página Sobre
-elif pagina == "Sobre":
+elif selected == "Sobre":
     st.markdown('<h1 class="main-header">Sobre o Projeto</h1>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div class="info-box">
-            <h4 style="color: #000000;">Objetivos da Pesquisa</h4>
-            <p style="color: #000000;">- Mapear o conhecimento sobre PrEP e PEP em São Paulo</p>
-            <p style="color: #000000;">- Identificar barreiras de acesso aos serviços</p>
-            <p style="color: #000000;">- Informar políticas públicas de prevenção ao HIV</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="info-box">
-            <h4 style="color: #000000;">Próximas Etapas</h4>
-            <p style="color: #000000;">- Análise aprofundada dos resultados</p>
-            <p style="color: #000000;">- Relatório com recomendações</p>
-            <p style="color: #000000;">- Divulgação dos resultados para a comunidade</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="info-box">
-            <h4 style="color: #000000;">Metodologia</h4>
-            <p style="color: #000000;">- Pesquisa quantitativa online</p>
-            <p style="color: #000000;">- Amostra não probabilística</p>
-            <p style="color: #000000;">- Análise estatística e machine learning</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="info-box">
-            <h4 style="color: #000000;">Contato</h4>
-            <p style="color: #000000;">Para mais informações sobre a pesquisa:</p>
-            <p style="color: #000000;">email@pesquisaprep.com</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #000000; margin-top: 2rem;">
-        <p>Desenvolvido com Streamlit, Pandas e Scikit-learn | Pesquisa sobre Prevenção ao HIV</p>
+    <div class="info-box">
+        <h4 style="color: #000000;">Objetivo da Pesquisa</h4>
+        <p style="color: #000000;">Esta pesquisa visa mapear o conhecimento sobre PrEP e PEP na população de São Paulo, 
+        identificando lacunas de informação e barreiras de acesso.</p>
     </div>
     """, unsafe_allow_html=True)
 
-# Rodapé em todas as páginas
+# Rodapé
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #000000; margin-top: 2rem;">
-    <p>© 2023 Pesquisa sobre PrEP e Prevenção ao HIV | Todos os dados são anônimos e confidenciais</p>
+    <p>Desenvolvido com Streamlit | Pesquisa sobre Prevenção ao HIV</p>
 </div>
 """, unsafe_allow_html=True)
