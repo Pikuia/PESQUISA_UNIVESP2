@@ -9,9 +9,6 @@ import sqlite3
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.decomposition import PCA
-import plotly.express as px
-import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
 
 # Configuração da página
 st.set_page_config(
@@ -170,28 +167,25 @@ if 'dados' not in st.session_state:
     st.session_state.dados = carregar_dados()
 
 # Barra lateral com menu de navegação
-with st.sidebar:
-    st.image("https://img.icons8.com/color/96/000000/data-configuration.png", width=80)
+st.sidebar.image("https://img.icons8.com/color/96/000000/data-configuration.png", width=80)
     
-    # Menu de navegação
-    selected = option_menu(
-        menu_title="Menu Principal",
-        options=["Questionário", "Visualizações", "Análises", "Sobre"],
-        icons=["clipboard", "bar-chart", "cpu", "info-circle"],
-        default_index=0,
-    )
-    
-    # Informações sobre o projeto
-    st.markdown("---")
-    st.markdown("""
-    <div class="info-box">
-        <h4 style="color: #000000;">Pesquisa sobre Conhecimento de PrEP/PEP</h4>
-        <p style="color: #000000;">Este projeto visa mapear o conhecimento sobre métodos de prevenção ao HIV na população de São Paulo.</p>
-    </div>
-    """, unsafe_allow_html=True)
+# Menu de navegação usando componentes nativos do Streamlit
+pagina = st.sidebar.radio(
+    "Menu Principal",
+    ["Questionário", "Visualizações", "Análises", "Sobre"]
+)
+
+# Informações sobre o projeto
+st.sidebar.markdown("---")
+st.sidebar.markdown("""
+<div class="info-box">
+    <h4 style="color: #000000;">Pesquisa sobre Conhecimento de PrEP/PEP</h4>
+    <p style="color: #000000;">Este projeto visa mapear o conhecimento sobre métodos de prevenção ao HIV na população de São Paulo.</p>
+</div>
+""", unsafe_allow_html=True)
 
 # Página do Questionário
-if selected == "Questionário":
+if pagina == "Questionário":
     # Cabeçalho
     st.markdown('<h1 class="main-header">Pesquisa sobre PrEP e Prevenção ao HIV em São Paulo</h1>', unsafe_allow_html=True)
     
@@ -412,7 +406,7 @@ if selected == "Questionário":
             st.error("Você precisa concordar com os termos de consentimento para enviar o formulário.")
 
 # Página de Visualizações
-elif selected == "Visualizações":
+elif pagina == "Visualizações":
     st.markdown('<h1 class="main-header">Visualizações dos Dados</h1>', unsafe_allow_html=True)
     
     if not st.session_state.dados.empty:
@@ -478,7 +472,7 @@ elif selected == "Visualizações":
         st.info("Aguardando respostas. As visualizações serão exibidas aqui quando houver dados suficientes.")
 
 # Página de Análises
-elif selected == "Análises":
+elif pagina == "Análises":
     st.markdown('<h1 class="main-header">Análises Avançadas</h1>', unsafe_allow_html=True)
     
     if not st.session_state.dados.empty and len(st.session_state.dados) >= 10:
@@ -542,7 +536,7 @@ elif selected == "Análises":
         st.info("São necessárias pelo menos 10 respostas para as análises avançadas.")
 
 # Página Sobre
-elif selected == "Sobre":
+elif pagina == "Sobre":
     st.markdown('<h1 class="main-header">Sobre o Projeto</h1>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
